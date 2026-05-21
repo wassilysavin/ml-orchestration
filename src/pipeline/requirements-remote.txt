@@ -1,0 +1,4 @@
+# Extra deps for the decoupled (remote MLflow + MinIO/S3) variant.
+# Lets the MLflow client read/write artifacts from the S3-compatible object
+# store when MLFLOW_TRACKING_URI / MLFLOW_S3_ENDPOINT_URL point at the stack.
+boto3==1.34.131

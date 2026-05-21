@@ -1,0 +1,35 @@
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Python artifacts
+__pycache__/
+.pycache/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Local Kaggle credentials
+kaggle.json
+.kaggle/
+
+# Data files
+/data
+
+# Model artifacts
+/models
+/mlruns
+/mlruns_docker_legacy
+
+# Multi-experiment artifacts
+/mlruns_experiments
+/experiments_out
+
+# Inter-step artifact hand-off (Task 3 DAGs)
+/artifacts

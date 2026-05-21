@@ -1,0 +1,26 @@
+# Flow-runner image for the decoupled stack: the training image plus the S3
+# client, so the same flows (training_flow / monitoring_flow / ab_flow) can talk
+# to a remote MLflow server + MinIO instead of the local filesystem. The command
+# is provided per-service in deploy/docker-compose.yml.
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends locales \
+    && sed -i '/en_US.UTF-8/s/^# //' /etc/locale.gen \
+    && locale-gen \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8
+
+WORKDIR /app
+
+COPY requirements.txt requirements-train.txt requirements-remote.txt ./
+RUN pip install --no-cache-dir \
+    -r requirements.txt -r requirements-train.txt -r requirements-remote.txt
+
+COPY . .
+
+CMD ["python", "-c", "print('set a command in docker-compose.yml')"]

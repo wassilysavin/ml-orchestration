@@ -1,0 +1,163 @@
+# Decoupled variant of the MLOps stack (Task 3 — "each component on its own node",
+# step 1 of the ladder: multiple containers on one host, coordinating through
+# NETWORK SERVICES instead of a shared local filesystem).
+#
+#   • postgres  — MLflow backend store (run/experiment metadata)
+#   • minio     — S3-compatible artifact store (models + MLflow artifacts)
+#   • mlflow    — MLflow tracking server (HTTP), proxies artifacts to MinIO
+#   • train-*, monitor, abtest — the existing flows, run as one-shot jobs
+#
+# The flow jobs share NO models/ or mlruns/ directory. The training jobs log
+# their model to MLflow (→ MinIO); the A/B job resolves a flow_version_id via the
+# MLflow server and pulls the model artifact back — exactly the cross-node
+# handoff that a shared local disk was hiding. Data is the one read-only input
+# still provided via a bind mount (a dataset volume); point DATA at object
+# storage to remove even that for true multi-node.
+#
+# Usage:
+#   cd deploy && cp .env.example .env
+#   docker compose up -d                       # bring up postgres + minio + mlflow
+#   docker compose run --rm train-baseline      # → flow version dfda8c64c3e3
+#   docker compose run --rm train-challenger    # → flow version e39940d83d56
+#   docker compose run --rm monitor             # drift test on the unseen segment
+#   docker compose run --rm abtest              # A/B across the two flow versions
+#   open http://localhost:5000  (MLflow UI)   open http://localhost:9001 (MinIO)
+
+name: mlops-decoupled
+
+x-flow-env: &flow-env
+  MLFLOW_TRACKING_URI: http://mlflow:5000
+  # With proxied artifacts the client fetches through the server, but boto3 is
+  # present so direct-to-MinIO also works if you drop --serve-artifacts.
+  MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+  AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+  AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+
+x-flow-build: &flow-build
+  context: ../src/pipeline
+  dockerfile: Dockerfile.flow
+
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: mlflow
+      POSTGRES_PASSWORD: mlflow
+      POSTGRES_DB: mlflow
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mlflow"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:RELEASE.2024-06-13T22-53-53Z
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "9000:9000"   # S3 API
+      - "9001:9001"   # web console
+    volumes:
+      - miniodata:/data
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # One-shot: create the artifacts bucket, then exit.
+  createbuckets:
+    image: minio/mc:RELEASE.2024-06-12T14-34-03Z
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+      mc alias set local http://minio:9000 ${MINIO_ROOT_USER} ${MINIO_ROOT_PASSWORD} &&
+      mc mb --ignore-existing local/mlflow &&
+      echo 'bucket local/mlflow ready'
+      "
+
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.20.0
+    depends_on:
+      postgres:
+        condition: service_healthy
+      createbuckets:
+        condition: service_completed_successfully
+    environment:
+      MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD}
+    ports:
+      - "5000:5000"
+    # boto3 + psycopg2 are not in the base image; install then serve. Artifacts
+    # are proxied through the server (--serve-artifacts) so flow clients only
+    # need MLFLOW_TRACKING_URI.
+    command: >
+      /bin/sh -c "pip install --no-cache-dir boto3 psycopg2-binary &&
+      mlflow server
+      --host 0.0.0.0 --port 5000
+      --backend-store-uri postgresql://mlflow:mlflow@postgres/mlflow
+      --artifacts-destination s3://mlflow/
+      --serve-artifacts"
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:5000/health')\""]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  # ---- Flow jobs (run with `docker compose run --rm <name>`) ----------------
+  # No models/ or mlruns/ mount: coordination is via the MLflow server + MinIO.
+  # data/ is mounted read-only as the dataset input.
+  train-baseline:
+    build: *flow-build
+    profiles: ["flows"]
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    environment: *flow-env
+    volumes:
+      - ../src/pipeline/data:/app/data:ro
+    command: ["python", "training_flow.py", "--variant", "baseline"]
+
+  train-challenger:
+    build: *flow-build
+    profiles: ["flows"]
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    environment: *flow-env
+    volumes:
+      - ../src/pipeline/data:/app/data:ro
+    command: ["python", "training_flow.py", "--variant", "challenger"]
+
+  monitor:
+    build: *flow-build
+    profiles: ["flows"]
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    environment: *flow-env
+    volumes:
+      - ../src/pipeline/data:/app/data:ro
+    command: ["python", "monitoring_flow.py"]
+
+  abtest:
+    build: *flow-build
+    profiles: ["flows"]
+    depends_on:
+      mlflow:
+        condition: service_healthy
+    environment: *flow-env
+    volumes:
+      - ../src/pipeline/data:/app/data:ro
+    command: ["python", "ab_flow.py", "--ab-test-id", "drug-sentiment-ab-001"]
+
+volumes:
+  pgdata:
+  miniodata:

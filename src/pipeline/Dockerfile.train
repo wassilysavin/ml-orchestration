@@ -1,0 +1,21 @@
+FROM python:3.11-slim
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends locales \
+    && sed -i '/en_US.UTF-8/s/^# //' /etc/locale.gen \
+    && locale-gen \
+    && rm -rf /var/lib/apt/lists/*
+
+ENV LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8
+
+WORKDIR /app
+
+COPY requirements.txt requirements-train.txt ./
+RUN pip install --no-cache-dir -r requirements.txt -r requirements-train.txt
+
+COPY . .
+
+CMD ["python", "flow.py"]
