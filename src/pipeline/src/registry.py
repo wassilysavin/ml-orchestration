@@ -1,4 +1,3 @@
-"""Filesystem-backed model registry: list, load, and serve ONNX sentiment models."""
 from typing import Iterable
 
 import numpy as np
@@ -19,22 +18,34 @@ class OnnxSentimentModel:
         self._label_output = outputs[0].name
         self._probability_output = outputs[1].name
 
+    _BATCH_SIZE = 1000
+
     @staticmethod
     def _to_input(texts: Iterable[str]) -> np.ndarray:
         """Reshape an iterable of texts into the (N, 1) object array ONNX expects."""
         return np.asarray(list(texts), dtype=object).reshape(-1, 1)
 
+    def _run_batched(self, output_name: str, texts: Iterable[str]) -> np.ndarray:
+        """Run one output over the inputs in row-batches, concatenated back to (N, ...)."""
+        items = list(texts)
+        if not items:
+            return np.empty((0,))
+        outputs = [
+            self._session.run(
+                [output_name],
+                {self._input_name: self._to_input(items[i : i + self._BATCH_SIZE])},
+            )[0]
+            for i in range(0, len(items), self._BATCH_SIZE)
+        ]
+        return np.concatenate(outputs, axis=0)
+
     def predict(self, texts: Iterable[str]) -> np.ndarray:
-        """Return the predicted class label array for each text."""
-        return self._session.run(
-            [self._label_output], {self._input_name: self._to_input(texts)}
-        )[0]
+        """Return the predicted class label array for each text (batched)."""
+        return self._run_batched(self._label_output, texts)
 
     def predict_proba(self, texts: Iterable[str]) -> np.ndarray:
-        """Return the per-class probability array for each text."""
-        return self._session.run(
-            [self._probability_output], {self._input_name: self._to_input(texts)}
-        )[0]
+        """Return the per-class probability array for each text (batched)."""
+        return self._run_batched(self._probability_output, texts)
 
 
 def list_models() -> list[dict]:

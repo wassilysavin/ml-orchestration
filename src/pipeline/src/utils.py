@@ -1,4 +1,3 @@
-"""Filesystem and data I/O helpers for the pipeline."""
 import json
 from pathlib import Path
 from typing import Any
@@ -14,6 +13,7 @@ from src.config import (
     SUMMARY_FILE,
     TEST_RAW_FILE,
     TRAIN_RAW_FILE,
+    TRAINING_PROCESSED_FILE,
 )
 
 
@@ -49,13 +49,18 @@ def read_json(path: Path) -> dict[str, Any]:
 
 
 def load_processed_reference() -> pd.DataFrame:
-    """Load the historical baseline split."""
+    """Load the frozen baseline split (drift baseline + training seed)."""
     return pd.read_parquet(REFERENCE_PROCESSED_FILE)
 
 
 def load_processed_current() -> pd.DataFrame:
-    """Load the current/evaluation split."""
+    """Load the current/evaluation split (unseen segment)."""
     return pd.read_parquet(CURRENT_PROCESSED_FILE)
+
+
+def load_processed_training() -> pd.DataFrame:
+    """Load the set the model fits: reference plus any folded-in incoming data."""
+    return pd.read_parquet(TRAINING_PROCESSED_FILE)
 
 
 def processed_outputs_exist() -> bool:
@@ -64,6 +69,7 @@ def processed_outputs_exist() -> bool:
         COMBINED_PROCESSED_FILE,
         CURRENT_PROCESSED_FILE,
         REFERENCE_PROCESSED_FILE,
+        TRAINING_PROCESSED_FILE,
         SUMMARY_FILE,
     )
     return all(path.exists() for path in required_paths)

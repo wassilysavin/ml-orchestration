@@ -1,4 +1,3 @@
-"""Post-deployment monitoring flow that measures covariate drift via PSI and records a verdict."""
 import argparse
 import sys
 import time
@@ -8,23 +7,25 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-import mlflow  # noqa: E402
+import mlflow
 
-from src.artifacts import read_json, write_json  # noqa: E402
-from src.config import (  # noqa: E402
+from src.artifacts import read_json, write_json
+from src.config import (
     DRIFT_FEATURE,
     MONITORING_EXPERIMENT_NAME,
     PSI_MODERATE_THRESHOLD,
     PSI_SIGNIFICANT_THRESHOLD,
 )
-from src.drift_checks import population_stability_index  # noqa: E402
-from src.mlflow_setup import configure_tracking, ensure_flow_run_id, experiment_tags  # noqa: E402
-from src.unseen_segment import (  # noqa: E402
+from src.drift_checks import population_stability_index
+from src.mlflow_setup import configure_tracking, ensure_flow_run_id, experiment_tags
+from src.unseen_segment import (
     load_reference_segment,
     load_unseen_segment,
 )
 
 _MEASUREMENT_ARTIFACT = "monitoring/measurement"
+
+NO_DRIFT_EXIT_CODE = 64
 
 
 def _configure_mlflow() -> None:
@@ -101,7 +102,17 @@ def _maybe_gate(verdict: str, gate: bool) -> None:
         raise SystemExit(1)
 
 
-def monitoring_flow(gate: bool = False) -> str:
+def _maybe_branch(verdict: str, branch: bool) -> None:
+    """Signal the orchestrator whether downstream retraining should run."""
+    if not branch:
+        return
+    if verdict == "PASS":
+        print(f"branch: no significant drift -> exit {NO_DRIFT_EXIT_CODE} (skip retrain)")
+        raise SystemExit(NO_DRIFT_EXIT_CODE)
+    print("branch: drift detected -> exit 0 (run retrain)")
+
+
+def monitoring_flow(gate: bool = False, branch: bool = False) -> str:
     """Run measure -> evaluate in-process and return the drift verdict."""
     started = time.time()
     print(f"\n=== monitoring flow (flow_run_id={ensure_flow_run_id()}) ===")
@@ -109,6 +120,7 @@ def monitoring_flow(gate: bool = False) -> str:
     verdict = evaluate_step(measurement)
     print(f"\nmonitoring flow completed in {time.time() - started:.1f}s -> {verdict}")
     _maybe_gate(verdict, gate)
+    _maybe_branch(verdict, branch)
     return verdict
 
 
@@ -117,10 +129,11 @@ def measure_command() -> None:
     write_json(_MEASUREMENT_ARTIFACT, measure_step())
 
 
-def evaluate_command(gate: bool = False) -> str:
+def evaluate_command(gate: bool = False, branch: bool = False) -> str:
     """DAG step: read the upstream measurement artifact and record the verdict."""
     verdict = evaluate_step(read_json(_MEASUREMENT_ARTIFACT))
     _maybe_gate(verdict, gate)
+    _maybe_branch(verdict, branch)
     return verdict
 
 
@@ -139,13 +152,21 @@ def main() -> None:
         action="store_true",
         help="Exit non-zero when significant drift is detected (fails the DAG).",
     )
+    parser.add_argument(
+        "--branch",
+        action="store_true",
+        help=(
+            f"Exit 0 on drift / {NO_DRIFT_EXIT_CODE} on no-drift so the orchestrator "
+            "can skip the retrain subtree with when=exited_with(drift, 0)."
+        ),
+    )
     args = parser.parse_args()
     if args.step == "measure":
         measure_command()
     elif args.step == "evaluate":
-        evaluate_command(gate=args.gate)
+        evaluate_command(gate=args.gate, branch=args.branch)
     else:
-        monitoring_flow(gate=args.gate)
+        monitoring_flow(gate=args.gate, branch=args.branch)
 
 
 if __name__ == "__main__":

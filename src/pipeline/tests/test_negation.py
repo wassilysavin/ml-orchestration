@@ -1,4 +1,3 @@
-"""Robustness check: prepending negation phrases must lower the predicted-class probability."""
 import numpy as np
 import pandas as pd
 import pytest

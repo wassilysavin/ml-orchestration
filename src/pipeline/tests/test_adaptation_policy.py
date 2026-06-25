@@ -1,4 +1,3 @@
-"""Drift-response policy checks: band -> action mapping and the retrain cooldown."""
 import pytest
 
 from src.adaptation_policy import Action, decide, in_cooldown

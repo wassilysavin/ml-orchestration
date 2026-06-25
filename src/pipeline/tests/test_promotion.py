@@ -1,4 +1,3 @@
-"""Champion-pointer checks: promote, retain a rollback target, and revert."""
 import pytest
 
 from src import promotion

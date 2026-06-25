@@ -1,4 +1,3 @@
-"""Pytest fixtures and conditional collection rules for the pipeline test suite."""
 import importlib
 import sys
 from pathlib import Path
@@ -15,7 +14,7 @@ from src.utils import load_processed_current, load_processed_reference
 collect_ignore_glob: list[str] = []
 for _mod, _files in (
     ("sklearn", ["test_baseline_margin.py", "test_invariance.py", "test_negation.py"]),
-    ("mlflow", ["test_min_training_rows.py"]),
+    ("mlflow", ["test_min_training_rows.py", "test_experiments.py"]),
     ("onnxruntime", []),
 ):
     if importlib.util.find_spec(_mod) is None:

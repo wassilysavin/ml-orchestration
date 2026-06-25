@@ -1,4 +1,3 @@
-"""Drift-response policy for closed-loop adaptation."""
 
 import enum
 

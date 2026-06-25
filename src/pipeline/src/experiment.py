@@ -1,4 +1,3 @@
-"""Run one self-contained experiment of versioned training, monitoring, and A/B."""
 
 import argparse
 import json
@@ -12,9 +11,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.config import MODELS_DIR, MODEL_METADATA_FILENAME  # noqa: E402
-from src.flow_config import TrainingFlowConfig  # noqa: E402
-from src.mlflow_setup import EXPERIMENT_ID_ENV  # noqa: E402
+from src.config import MODELS_DIR, MODEL_METADATA_FILENAME
+from src.flow_config import TrainingFlowConfig
+from src.mlflow_setup import EXPERIMENT_ID_ENV
 
 EXPERIMENTS_OUT_DIR = PROJECT_ROOT / "experiments_out"
 

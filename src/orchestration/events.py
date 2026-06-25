@@ -1,4 +1,3 @@
-"""Frozen event dataclasses flowing through the EventBus and agent queue."""
 import time
 from dataclasses import dataclass, field
 from typing import Literal
@@ -7,6 +6,18 @@ from typing import Literal
 def _now() -> float:
     """Return the current wall-clock time as a Unix timestamp."""
     return time.time()
+
+
+@dataclass(frozen=True)
+class FlowRunCreated:
+    """Emitted when a FlowRun is allocated, before it starts running."""
+
+    flow_run_id: str
+    flow_name: str
+    step_names: tuple[str, ...]
+    parent_flow_run_id: str | None = None
+    parent_step_name: str | None = None
+    ts: float = field(default_factory=_now)
 
 
 @dataclass(frozen=True)
@@ -65,7 +76,8 @@ class LogChunk:
 
 
 Event = (
-    FlowStateChanged
+    FlowRunCreated
+    | FlowStateChanged
     | StepStateChanged
     | ContainerStarted
     | ContainerExited

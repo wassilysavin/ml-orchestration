@@ -1,4 +1,3 @@
-"""Filesystem artifact passing between orchestrated steps."""
 
 import json
 import os
@@ -9,8 +8,11 @@ from src.config import PROJECT_ROOT
 
 
 def artifacts_dir() -> Path:
-    """Return the shared artifact directory, creating it if needed."""
+    """Return this flow run's artifact directory, creating it if needed."""
     root = Path(os.environ.get("PIPELINE_ARTIFACT_DIR", PROJECT_ROOT / "artifacts"))
+    flow_run_id = os.environ.get("FLOW_RUN_ID")
+    if flow_run_id:
+        root = root / flow_run_id
     root.mkdir(parents=True, exist_ok=True)
     return root
 

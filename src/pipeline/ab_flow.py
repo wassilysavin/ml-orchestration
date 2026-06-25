@@ -1,4 +1,3 @@
-"""Offline A/B prediction flow that compares two flow versions on the unseen segment by macro-F1."""
 import argparse
 import sys
 import time
@@ -8,24 +7,25 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-import mlflow  # noqa: E402
-import pandas as pd  # noqa: E402
-from sklearn.metrics import f1_score  # noqa: E402
+import mlflow
+import pandas as pd
+from sklearn.metrics import f1_score
 
-from src.ab_split import assign_variant  # noqa: E402
-from src.config import (  # noqa: E402
+from src.ab_split import assign_variant
+from src.config import (
     AB_EXPERIMENT_NAME,
     AB_SPLIT_ATTRIBUTE,
     AB_VARIANT_A,
     AB_VARIANT_B,
+    AB_WINNER_ARTIFACT,
 )
-from src.flow_config import BASELINE_FLOW_CONFIG, CHALLENGER_FLOW_CONFIG  # noqa: E402
-from src.mlflow_setup import configure_tracking, ensure_flow_run_id, experiment_tags  # noqa: E402
-from src.flow_registry import resolve_flow_version_to_run_id  # noqa: E402
-from src.registry import load_model  # noqa: E402
-from src.sentiment_data import build_xy, filter_for_binary_sentiment  # noqa: E402
-from src.unseen_segment import load_unseen_segment  # noqa: E402
-from src.artifacts import read_json, write_json  # noqa: E402
+from src.flow_config import BASELINE_FLOW_CONFIG, CHALLENGER_FLOW_CONFIG
+from src.mlflow_setup import configure_tracking, ensure_flow_run_id, experiment_tags
+from src.flow_registry import resolve_flow_version_to_run_id
+from src.registry import load_model
+from src.sentiment_data import build_xy, filter_for_binary_sentiment
+from src.unseen_segment import load_unseen_segment
+from src.artifacts import read_json, write_json
 
 _MODEL_IDS_ARTIFACT = "ab/model_ids"
 _VERSIONS_ARTIFACT = "ab/versions"
@@ -93,6 +93,17 @@ def measure_step(
     """Step 3: log per-variant metrics under the test's namespace; return winner."""
     print("\n=== step: measure ===")
     winner = max(results, key=lambda v: results[v]["macro_f1"])
+
+    write_json(
+        AB_WINNER_ARTIFACT,
+        {
+            "variant": winner,
+            "flow_version_id": versions[winner],
+            "run_id": results[winner]["model_run_id"],
+            "macro_f1": results[winner]["macro_f1"],
+            "ab_test_id": ab_test_id,
+        },
+    )
 
     configure_tracking(AB_EXPERIMENT_NAME)
     with mlflow.start_run(run_name=f"ab:{ab_test_id}") as run:

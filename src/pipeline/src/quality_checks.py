@@ -1,4 +1,3 @@
-"""Data-quality primitives: missingness, KS, TVD, and threshold-enforcing assertions."""
 import pandas as pd
 import pandera as pa
 from pandera import Check, Column, DataFrameSchema

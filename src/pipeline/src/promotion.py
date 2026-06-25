@@ -1,4 +1,3 @@
-"""Champion model pointer with promotion and rollback."""
 
 import json
 from pathlib import Path

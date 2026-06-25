@@ -1,4 +1,3 @@
-"""In-process pub/sub for control-plane events."""
 import asyncio
 from typing import Awaitable, Callable
 

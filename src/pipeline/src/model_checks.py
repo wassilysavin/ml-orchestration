@@ -1,4 +1,3 @@
-"""Behavioral model checks: baseline margin, invariance, and negation-shift assertions."""
 from typing import Iterable
 
 import numpy as np

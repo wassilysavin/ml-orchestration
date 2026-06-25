@@ -1,4 +1,3 @@
-"""Multi-experiment checks: namespacing isolates, and specs round-trip."""
 import pytest
 
 from src.experiment import ExperimentSpec

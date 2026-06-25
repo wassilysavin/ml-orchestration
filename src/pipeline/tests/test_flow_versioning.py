@@ -1,4 +1,3 @@
-"""Flow-versioning check: the flow_version_id is a stable function of the config."""
 import pytest
 
 from src.flow_config import (

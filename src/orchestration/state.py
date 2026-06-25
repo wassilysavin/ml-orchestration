@@ -1,4 +1,3 @@
-"""FlowRun / StepRun records and the in-memory event-sourced state store."""
 import enum
 import uuid
 from dataclasses import dataclass, field
@@ -30,6 +29,7 @@ class StepState(str, enum.Enum):
     running = "running"
     succeeded = "succeeded"
     failed = "failed"
+    skipped = "skipped"
 
 
 @dataclass
@@ -51,6 +51,8 @@ class FlowRun:
     flow_name: str
     state: FlowState = FlowState.pending
     steps: dict[str, StepRun] = field(default_factory=dict)
+    parent_flow_run_id: str | None = None
+    parent_step_name: str | None = None
 
 
 def new_flow_run_id() -> str:
@@ -67,16 +69,28 @@ class InMemoryStateStore:
         self._events: list[Event] = []
 
     def create_flow_run(
-        self, flow_name: str, step_names: Iterable[str],
+        self,
+        flow_name: str,
+        step_names: Iterable[str],
+        parent_flow_run_id: str | None = None,
+        parent_step_name: str | None = None,
     ) -> FlowRun:
         """Allocate a new FlowRun with `pending` step entries for each step name."""
         run = FlowRun(
             id=new_flow_run_id(),
             flow_name=flow_name,
             steps={n: StepRun(name=n) for n in step_names},
+            parent_flow_run_id=parent_flow_run_id,
+            parent_step_name=parent_step_name,
         )
         self._runs[run.id] = run
         return run
+
+    def children_of(self, flow_run_id: str) -> list[FlowRun]:
+        """Return the child runs spawned by SubFlow nodes of `flow_run_id`."""
+        return [
+            r for r in self._runs.values() if r.parent_flow_run_id == flow_run_id
+        ]
 
     def append(self, event: Event) -> None:
         """Record `event` to the log and apply it to the materialized view."""

@@ -1,4 +1,3 @@
-"""Covariate-drift primitives for post-deployment monitoring."""
 
 import numpy as np
 import pandas as pd

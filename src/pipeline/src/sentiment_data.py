@@ -1,4 +1,3 @@
-"""Filter the labeled review dataset down to a binary sentiment task."""
 import pandas as pd
 
 from src.config import (

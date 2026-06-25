@@ -1,4 +1,3 @@
-"""Data-quality check: the condition column must remain ≤1% null in the current split."""
 import pytest
 
 from src.config import MAX_CONDITION_MISSINGNESS

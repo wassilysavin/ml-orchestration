@@ -1,4 +1,3 @@
-"""LocalDockerAgent: launches and monitors containers on the local docker daemon."""
 import asyncio
 from dataclasses import dataclass, field
 from typing import Any

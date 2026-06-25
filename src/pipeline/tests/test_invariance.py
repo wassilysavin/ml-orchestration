@@ -1,4 +1,3 @@
-"""Robustness check (disabled): predictions should survive benign text perturbations."""
 import pytest
 
 from src.config import INVARIANCE_SAMPLE_SIZE

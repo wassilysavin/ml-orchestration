@@ -1,4 +1,3 @@
-"""Resolve a versioned training flow back to its concrete model."""
 
 from mlflow.tracking import MlflowClient
 

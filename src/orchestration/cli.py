@@ -1,4 +1,3 @@
-"""Typer CLI: `orchestration run path/to/file.py:flow`."""
 import asyncio
 import importlib
 import importlib.util
@@ -18,6 +17,7 @@ from orchestration.events import (
     LogChunk,
     StepStateChanged,
 )
+from orchestration.monitoring import JsonlSink, MonitoringService
 from orchestration.state import FlowState
 from orchestration.types import Flow
 
@@ -63,6 +63,7 @@ def _render_event(event: Event) -> str | None:
             "running": "blue",
             "succeeded": "green",
             "failed": "red",
+            "skipped": "magenta",
         }.get(event.to_state, "white")
         return (
             f"  step [bold]{event.step_name}[/] "
@@ -93,14 +94,21 @@ def _render_event(event: Event) -> str | None:
 def run(
     target: str = typer.Argument(..., help="flow target as path.py:var or module:var"),
     quiet: bool = typer.Option(False, "--quiet", "-q", help="suppress event stream"),
+    monitor_log: str = typer.Option(
+        None, "--monitor-log", help="append the monitoring event log to this JSONL file"
+    ),
 ) -> None:
     """Load a flow target, run it under a fresh ControlPlane, exit with its status."""
     flow = _load_flow(target)
 
     async def _go() -> int:
-        """Async body of `run`: build agent + ControlPlane, optionally subscribe printer."""
+        """Async body of `run`: build agent + ControlPlane, wire monitoring + printer."""
         agent = LocalDockerAgent(host_id="host-local")
         cp = ControlPlane(agent)
+
+        sink = JsonlSink(monitor_log) if monitor_log else None
+        monitor = MonitoringService(sink=sink)
+        cp.bus.subscribe(monitor.handle)
 
         if not quiet:
             def on_event(event: Event) -> None:
@@ -114,6 +122,10 @@ def run(
             run = await cp.run_flow(flow)
         finally:
             await agent.shutdown()
+
+        if not quiet:
+            console.print("\n[bold]final state[/]")
+            console.print(monitor.render_tree(run.id))
 
         return 0 if run.state == FlowState.succeeded else 1
 

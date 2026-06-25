@@ -1,4 +1,3 @@
-"""Versioned training-flow configuration."""
 
 import hashlib
 import json

@@ -1,4 +1,3 @@
-"""Single-process pipeline driver: data quality → train → robustness."""
 import subprocess
 import sys
 import time

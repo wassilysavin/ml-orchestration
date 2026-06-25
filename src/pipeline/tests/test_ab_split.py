@@ -1,4 +1,3 @@
-"""A/B check: routing is reproducible, ~even, and decorrelated across tests."""
 import pytest
 
 from src.ab_split import assign_variant

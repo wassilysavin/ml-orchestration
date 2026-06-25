@@ -1,4 +1,3 @@
-"""Robustness check: macro-F1 must beat the majority-class baseline by the configured margin."""
 import pytest
 
 from src.model_checks import assert_baseline_margin

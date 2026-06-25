@@ -1,4 +1,3 @@
-"""Data-quality check: rating column distribution must stay close to the reference split."""
 import pytest
 
 from src.config import MAX_RATING_KS_STATISTIC

@@ -1,4 +1,3 @@
-"""Deterministic, reproducible A/B bucketing of records."""
 
 import hashlib
 

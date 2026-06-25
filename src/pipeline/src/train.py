@@ -1,4 +1,3 @@
-"""Fit the TF-IDF + LogReg sentiment pipeline, export to ONNX, log to MLflow."""
 import argparse
 import json
 from pathlib import Path
@@ -29,7 +28,7 @@ from src.config import (
 from src.flow_config import TrainingFlowConfig
 from src.mlflow_setup import configure_tracking, experiment_tags
 from src.sentiment_data import build_xy, filter_for_binary_sentiment
-from src.utils import load_processed_current, load_processed_reference
+from src.utils import load_processed_current, load_processed_training
 
 
 class InsufficientTrainingDataError(RuntimeError):
@@ -95,8 +94,8 @@ def train(config: TrainingFlowConfig | None = None) -> str:
     """Train, score, convert to ONNX, log to MLflow, persist; return the run id."""
     config = config or TrainingFlowConfig()
 
-    reference = filter_for_binary_sentiment(
-        load_processed_reference(),
+    training = filter_for_binary_sentiment(
+        load_processed_training(),
         positive_floor=config.positive_rating_floor,
         negative_ceiling=config.negative_rating_ceiling,
     )
@@ -106,7 +105,7 @@ def train(config: TrainingFlowConfig | None = None) -> str:
         negative_ceiling=config.negative_rating_ceiling,
     )
 
-    X_train, y_train = build_xy(reference)
+    X_train, y_train = build_xy(training)
     X_eval, y_eval = build_xy(current)
 
     if len(X_train) < MIN_TRAINING_ROWS:

@@ -1,4 +1,3 @@
-"""Launch many isolated experiments concurrently as subprocesses or containers, then summarize."""
 import argparse
 import json
 import os
@@ -13,9 +12,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-from src.experiment import EXPERIMENTS_OUT_DIR, ExperimentSpec  # noqa: E402
-from src.flow_config import TrainingFlowConfig  # noqa: E402
-from src.mlflow_setup import EXPERIMENT_ID_ENV  # noqa: E402
+from src.experiment import EXPERIMENTS_OUT_DIR, ExperimentSpec
+from src.flow_config import TrainingFlowConfig
+from src.mlflow_setup import EXPERIMENT_ID_ENV
 
 DEMO_BATCH: tuple[ExperimentSpec, ...] = (
     ExperimentSpec(

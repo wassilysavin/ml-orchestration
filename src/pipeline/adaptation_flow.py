@@ -1,4 +1,3 @@
-"""Closed-loop drift adaptation that measures drift, decides via a policy, then retrains, A/Bs, and promotes."""
 import argparse
 import sys
 import time
@@ -9,12 +8,12 @@ PROJECT_ROOT = Path(__file__).resolve().parent
 if str(PROJECT_ROOT) not in sys.path:
     sys.path.insert(0, str(PROJECT_ROOT))
 
-import mlflow  # noqa: E402
+import mlflow
 
-from monitoring_flow import band_of, evaluate_step, measure_step  # noqa: E402
-from src import promotion  # noqa: E402
-from src.adaptation_policy import Action, decide, in_cooldown  # noqa: E402
-from src.config import (  # noqa: E402
+from monitoring_flow import band_of, evaluate_step, measure_step
+from src import promotion
+from src.adaptation_policy import Action, decide, in_cooldown
+from src.config import (
     ADAPTATION_EXPERIMENT_NAME,
     ADAPTATION_STATE_FILENAME,
     AB_VARIANT_A,
@@ -24,9 +23,9 @@ from src.config import (  # noqa: E402
     PROMOTION_MIN_MACRO_F1_MARGIN,
     RETRAIN_COOLDOWN_SECONDS,
 )
-from src.flow_config import BASELINE_FLOW_CONFIG, CHALLENGER_FLOW_CONFIG, TrainingFlowConfig  # noqa: E402
-from src.mlflow_setup import configure_tracking, ensure_flow_run_id, experiment_tags  # noqa: E402
-from src.utils import read_json, write_json  # noqa: E402
+from src.flow_config import BASELINE_FLOW_CONFIG, CHALLENGER_FLOW_CONFIG, TrainingFlowConfig
+from src.mlflow_setup import configure_tracking, ensure_flow_run_id, experiment_tags
+from src.utils import read_json, write_json
 
 VARIANTS = {"baseline": BASELINE_FLOW_CONFIG, "challenger": CHALLENGER_FLOW_CONFIG}
 

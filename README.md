@@ -157,10 +157,10 @@ succeeds, **1** if any step fails. Container logs stream live, prefixed by step.
 
 ```bash
 # the end-to-end MLOps pipeline: DataPrep → Train → Robustness
-orchestration examples/mlops_pipeline.py:flow
+orchestration examples/full_pipeline.py:flow
 
 # suppress the event stream (only the final exit code matters)
-orchestration examples/mlops_pipeline.py:flow --quiet
+orchestration examples/full_pipeline.py:flow --quiet
 ```
 
 The post-deployment flows ([examples/post_deployment_flows.py](examples/post_deployment_flows.py))

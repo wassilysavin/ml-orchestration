@@ -1,4 +1,3 @@
-"""Centralized constants: deterministic paths, Kaggle slugs, thresholds, seeds."""
 from pathlib import Path
 
 
@@ -18,7 +17,11 @@ TEST_RAW_PARQUET_FILE = RAW_DIR / "drugsComTest_raw.parquet"
 COMBINED_PROCESSED_FILE = PROCESSED_DIR / "drug_reviews.parquet"
 REFERENCE_PROCESSED_FILE = PROCESSED_DIR / "drug_reviews_reference.parquet"
 CURRENT_PROCESSED_FILE = PROCESSED_DIR / "drug_reviews_current.parquet"
+TRAINING_PROCESSED_FILE = PROCESSED_DIR / "drug_reviews_training.parquet"
 SUMMARY_FILE = PROCESSED_DIR / "quality_summary.json"
+
+INCOMING_EVAL_FRACTION = 0.3
+INCOMING_SPLIT_SALT = "incoming-holdout"
 
 DATE_FORMAT = "%d-%b-%y"
 REFERENCE_SPLIT_LABEL = "reference"
@@ -61,6 +64,15 @@ FLOW_VERSION_TAG = "flow_version_id"
 FLOW_NAME_TAG = "flow_name"
 TRAINING_FLOW_NAME = "drug-review-training"
 
+INCOMING_DATASET_ENV = "INCOMING_DATASET"
+
+COMPONENT_NAME_TAG = "component_name"
+COMPONENT_VERSION_TAG = "component_version_id"
+DATASET_VERSION_TAG = "dataset_version_id"
+COMPONENTS_EXPERIMENT_NAME = "drug-review-components"
+DATASET_PULL_COMPONENT = "dataset-pull"
+DATA_PREP_COMPONENT = "data-prep"
+
 MONITORING_EXPERIMENT_NAME = "drug-review-monitoring"
 DRIFT_FEATURE = "review_length"
 PSI_BINS = 10
@@ -71,6 +83,7 @@ AB_EXPERIMENT_NAME = "drug-review-abtest"
 AB_SPLIT_ATTRIBUTE = "unique_id"
 AB_VARIANT_A = "A"
 AB_VARIANT_B = "B"
+AB_WINNER_ARTIFACT = "ab/winner"
 
 ADAPTATION_EXPERIMENT_NAME = "drug-review-adaptation"
 CHAMPION_FILENAME = "champion.json"

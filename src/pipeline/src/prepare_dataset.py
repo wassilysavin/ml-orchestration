@@ -1,23 +1,33 @@
-"""Transform raw Kaggle CSVs into typed Parquet splits + a quality summary."""
 import argparse
 import html
+import os
 from typing import Any
 
 import pandas as pd
 
+from src.component_version import (
+    DATA_PREP_PARAMS,
+    component_version_id,
+    data_prep_payload,
+)
 from src.config import (
     COMBINED_PROCESSED_FILE,
     CURRENT_PROCESSED_FILE,
     CURRENT_SPLIT_LABEL,
+    DATA_PREP_COMPONENT,
+    DATASET_VERSION_TAG,
     DATE_FORMAT,
     REFERENCE_PROCESSED_FILE,
     REFERENCE_SPLIT_LABEL,
     SUMMARY_FILE,
     TEST_RAW_FILE,
     TRAIN_RAW_FILE,
+    TRAINING_PROCESSED_FILE,
     UCI_DATASET_NAME,
 )
-from src.download_data import prepare_raw_dataset
+from src.download_data import dataset_pull_version, prepare_raw_dataset
+from src.ingestion import incoming_dataset_path
+from src.splits import is_incoming_eval
 from src.quality_checks import (
     categorical_total_variation_distance,
     condition_missing_rate,
@@ -93,12 +103,16 @@ def _prepare_split(dataframe: pd.DataFrame, split_label: str) -> pd.DataFrame:
     return prepared[ordered_columns]
 
 
-def _build_summary(reference: pd.DataFrame, current: pd.DataFrame) -> dict[str, Any]:
-    """Compute row counts plus drift/missingness stats between the two splits."""
+def _build_summary(
+    reference: pd.DataFrame, current: pd.DataFrame, training: pd.DataFrame
+) -> dict[str, Any]:
+    """Compute row counts plus drift/missingness stats between the splits."""
     return {
         "dataset": UCI_DATASET_NAME,
         "reference_rows": int(len(reference)),
         "current_rows": int(len(current)),
+        "training_rows": int(len(training)),
+        "incoming_train_rows": int(len(training) - len(reference)),
         "condition_missing_rate_reference": round(condition_missing_rate(reference), 6),
         "condition_missing_rate_current": round(condition_missing_rate(current), 6),
         "rating_ks_reference_vs_current": round(
@@ -113,29 +127,91 @@ def _build_summary(reference: pd.DataFrame, current: pd.DataFrame) -> dict[str, 
     }
 
 
+def _assemble_splits(
+    reference: pd.DataFrame, current_full: pd.DataFrame, has_incoming: bool
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """Return (training, current) splits."""
+    if not has_incoming:
+        return reference, current_full
+
+    eval_mask = current_full["unique_id"].map(is_incoming_eval)
+    incoming_eval = current_full[eval_mask].reset_index(drop=True)
+    incoming_train = current_full[~eval_mask].reset_index(drop=True)
+    training = pd.concat([reference, incoming_train], ignore_index=True)
+    print(
+        f"ingest split: incoming_train={len(incoming_train)} folded into training, "
+        f"incoming_eval={len(incoming_eval)} held out as the current segment"
+    )
+    return training, incoming_eval
+
+
+def _maybe_track_data_prep(summary: dict[str, Any]) -> None:
+    """When tracking is active, log this data-prep version (and its dataset lineage)."""
+    if not (os.environ.get("FLOW_RUN_ID") or os.environ.get("TRACK_COMPONENTS")):
+        return
+    try:
+        dataset_version_id, _ = dataset_pull_version()
+        version_id = component_version_id(
+            DATA_PREP_COMPONENT, data_prep_payload(dataset_version_id)
+        )
+        from src.component_tracking import log_component
+
+        metrics = {
+            key: float(value)
+            for key, value in summary.items()
+            if isinstance(value, (int, float)) and not isinstance(value, bool)
+        }
+        log_component(
+            DATA_PREP_COMPONENT,
+            version_id,
+            params={
+                "dataset": summary.get("dataset", UCI_DATASET_NAME),
+                **{f"prep_{key}": value for key, value in DATA_PREP_PARAMS.items()},
+            },
+            metrics=metrics,
+            tags={DATASET_VERSION_TAG: dataset_version_id},
+        )
+        print(
+            f"data-prep component_version_id={version_id} "
+            f"(dataset_version_id={dataset_version_id})"
+        )
+    except Exception as exc:
+        print(f"data-prep tracking skipped: {exc}")
+
+
 def build_processed_datasets(overwrite: bool = False) -> dict[str, Any]:
     """Create processed Parquet files for the reference and current splits."""
     ensure_directories()
+    rebuild = overwrite or incoming_dataset_path() is not None
     prepare_raw_dataset(overwrite=overwrite)
 
-    if processed_outputs_exist() and not overwrite:
-        return read_json(SUMMARY_FILE)
+    if processed_outputs_exist() and not rebuild:
+        summary = read_json(SUMMARY_FILE)
+    else:
+        reference_raw = read_csv(TRAIN_RAW_FILE)
+        current_raw = read_csv(TEST_RAW_FILE)
 
-    reference_raw = read_csv(TRAIN_RAW_FILE)
-    current_raw = read_csv(TEST_RAW_FILE)
+        reference = _prepare_split(reference_raw, REFERENCE_SPLIT_LABEL)
+        current_full = _prepare_split(current_raw, CURRENT_SPLIT_LABEL)
 
-    reference = _prepare_split(reference_raw, REFERENCE_SPLIT_LABEL)
-    current = _prepare_split(current_raw, CURRENT_SPLIT_LABEL)
+        training, current = _assemble_splits(
+            reference, current_full, has_incoming=incoming_dataset_path() is not None
+        )
 
-    combined = pd.concat([reference, current], ignore_index=True)
-    combined = combined.sort_values(["split", "review_date", "unique_id"]).reset_index(drop=True)
+        combined = pd.concat([reference, current], ignore_index=True)
+        combined = combined.sort_values(
+            ["split", "review_date", "unique_id"]
+        ).reset_index(drop=True)
 
-    write_parquet(reference, REFERENCE_PROCESSED_FILE)
-    write_parquet(current, CURRENT_PROCESSED_FILE)
-    write_parquet(combined, COMBINED_PROCESSED_FILE)
+        write_parquet(reference, REFERENCE_PROCESSED_FILE)
+        write_parquet(current, CURRENT_PROCESSED_FILE)
+        write_parquet(training, TRAINING_PROCESSED_FILE)
+        write_parquet(combined, COMBINED_PROCESSED_FILE)
 
-    summary = _build_summary(reference, current)
-    write_json(summary, SUMMARY_FILE)
+        summary = _build_summary(reference, current, training)
+        write_json(summary, SUMMARY_FILE)
+
+    _maybe_track_data_prep(summary)
     return summary
 
 

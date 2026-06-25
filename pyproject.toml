@@ -3,7 +3,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "orchestration"
+name = "ml-orchestration"
 version = "0.1.0"
 description = ""
 readme = "README.md"
@@ -13,6 +13,14 @@ dependencies = [
     "docker>=7.0.0",
     "typer>=0.12.0",
     "rich>=13.0.0",
+]
+
+[project.optional-dependencies]
+# The dataset HTTP receiver (examples/dataset_api.py). Install with: pip install -e ".[api]"
+api = [
+    "fastapi>=0.110.0",
+    "uvicorn>=0.29.0",
+    "python-multipart>=0.0.9",
 ]
 
 [project.scripts]

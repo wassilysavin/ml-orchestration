@@ -1,4 +1,3 @@
-"""Monitoring check: PSI behaves as a drift distance and flags real shifts."""
 import numpy as np
 import pandas as pd
 import pytest
