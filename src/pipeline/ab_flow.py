@@ -11,6 +11,7 @@ import mlflow
 import pandas as pd
 from sklearn.metrics import f1_score
 
+from src import promotion
 from src.ab_split import assign_variant
 from src.config import (
     AB_EXPERIMENT_NAME,
@@ -18,6 +19,7 @@ from src.config import (
     AB_VARIANT_A,
     AB_VARIANT_B,
     AB_WINNER_ARTIFACT,
+    SELECTION_WINNER_ARTIFACT,
 )
 from src.flow_config import BASELINE_FLOW_CONFIG, CHALLENGER_FLOW_CONFIG
 from src.mlflow_setup import configure_tracking, ensure_flow_run_id, experiment_tags
@@ -176,6 +178,53 @@ def measure_command(ab_test_id: str) -> str:
     return measure_step(results, ab_test_id, versions)
 
 
+def _forward_selection_winner(ab_test_id: str) -> None:
+    """No champion yet: hand the selection winner straight to Promote for bootstrap."""
+    selected = read_json(SELECTION_WINNER_ARTIFACT)
+    write_json(
+        AB_WINNER_ARTIFACT,
+        {
+            "variant": AB_VARIANT_A,
+            "flow_version_id": selected["flow_version_id"],
+            "run_id": selected["run_id"],
+            "macro_f1": selected.get("macro_f1"),
+            "ab_test_id": ab_test_id,
+        },
+    )
+    print("no champion yet -> selection winner forwarded for bootstrap promotion")
+
+
+def champion_command(ab_test_id: str) -> None:
+    """DAG step: A/B the selection winner (A) against the live champion (B).
+
+    The winning candidate from the offline selection step plays the role of the
+    challenger; the deployed champion is variant B. With no champion on record yet
+    there is nothing to test against, so the selection winner is forwarded as-is.
+    """
+    print(
+        f"\n=== A/B (selected vs champion, ab_test_id={ab_test_id}, "
+        f"flow_run_id={ensure_flow_run_id()}) ==="
+    )
+    selected = read_json(SELECTION_WINNER_ARTIFACT)
+    champion = promotion.get_champion()
+    if champion is None:
+        _forward_selection_winner(ab_test_id)
+        return
+
+    model_ids = {AB_VARIANT_A: selected["run_id"], AB_VARIANT_B: champion["run_id"]}
+    versions = {
+        AB_VARIANT_A: selected["flow_version_id"],
+        AB_VARIANT_B: champion["flow_version_id"],
+    }
+    print(
+        f"variant {AB_VARIANT_A} (selected {selected['variant']}): "
+        f"model {selected['run_id']}; "
+        f"variant {AB_VARIANT_B} (champion): model {champion['run_id']}"
+    )
+    results = predict_step(model_ids, ab_test_id)
+    measure_step(results, ab_test_id, versions)
+
+
 def main() -> None:
     """CLI entry point for running the A/B flow or its individual steps."""
     parser = argparse.ArgumentParser(description="Run an offline A/B prediction flow.")
@@ -183,7 +232,7 @@ def main() -> None:
         "step",
         nargs="?",
         default="run",
-        choices=["run", "resolve", "predict", "measure"],
+        choices=["run", "resolve", "predict", "measure", "champion"],
         help="Which step to run (default: run the whole flow in-process).",
     )
     parser.add_argument(
@@ -215,6 +264,8 @@ def main() -> None:
         predict_command(args.variant, args.ab_test_id)
     elif args.step == "measure":
         measure_command(args.ab_test_id)
+    elif args.step == "champion":
+        champion_command(args.ab_test_id)
     else:
         ab_flow(args.version_a, args.version_b, args.ab_test_id)
 

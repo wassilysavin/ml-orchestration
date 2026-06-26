@@ -12,13 +12,12 @@ from flow import data_quality_step, robustness_step
 from src.artifacts import read_json, write_json
 from src.mlflow_setup import ensure_flow_run_id
 from src.flow_config import (
-    BASELINE_FLOW_CONFIG,
-    CHALLENGER_FLOW_CONFIG,
+    CANDIDATE_FLOW_CONFIGS,
     TrainingFlowConfig,
 )
 from src.train import train
 
-VARIANTS = {"baseline": BASELINE_FLOW_CONFIG, "challenger": CHALLENGER_FLOW_CONFIG}
+VARIANTS = CANDIDATE_FLOW_CONFIGS
 
 _RUN_ID_ARTIFACT = "training/run_id"
 

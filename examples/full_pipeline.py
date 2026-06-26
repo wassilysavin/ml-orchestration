@@ -43,7 +43,7 @@ DRIFTED_DATASET = os.environ.get("DRIFTED_DATASET")
 TRAINING_VARIANTS: list[tuple[str, list[str]]] = [
     ("baseline", ["--variant", "baseline"]),
     ("challenger", ["--variant", "challenger"]),
-    ("c03", ["--C", "0.3"]),
+    ("c03", ["--variant", "c03"]),
 ]
 
 REQUIRED_COLUMNS = {
@@ -129,11 +129,21 @@ class RobustnessVariant(Step):
         super().__init__(name=f"robustness-{name}")
 
 
-class ABTest(Step):
-    """Resolve baseline vs challenger to model ids; compare macro-F1; record the winner."""
+class SelectBest(Step):
+    """Score every trained candidate on one shared held-out set; record the winner."""
 
     image = "mlops-train:latest"
-    command = ["python", "ab_flow.py", "--ab-test-id", "full-demo"]
+    command = ["python", "select_flow.py"]
+    workdir = "/app"
+    volumes = SHARED_VOLUMES
+    resources = Resources(cpu=2, memory_gb=3)
+
+
+class ABTest(Step):
+    """A/B the selection winner against the live champion; record the A/B winner."""
+
+    image = "mlops-train:latest"
+    command = ["python", "ab_flow.py", "champion", "--ab-test-id", "full-demo"]
     workdir = "/app"
     volumes = SHARED_VOLUMES
     resources = Resources(cpu=2, memory_gb=3)
@@ -165,8 +175,10 @@ def build_flow(incoming_filename: str | None = None) -> Flow:
     """The end-to-end DAG, optionally seeded with a freshly-arrived dataset.
 
     Ingest → DataQuality → DriftBranch → (3 train/robustness subflows when drift) →
-    ABTest → Promote. When `incoming_filename` is given, Ingest reads that file from
-    the incoming drop directory instead of re-pulling the reference dataset.
+    SelectBest → ABTest → Promote. SelectBest scores all three trained candidates on
+    one shared held-out set and picks the best config; ABTest then A/Bs that winner
+    against the live champion. When `incoming_filename` is given, Ingest reads that
+    file from the incoming drop directory instead of re-pulling the reference dataset.
     """
     ingest_step = Ingest()
     if incoming_filename is not None:
@@ -186,7 +198,8 @@ def build_flow(incoming_filename: str | None = None) -> Flow:
         for name, args in TRAINING_VARIANTS
     }
 
-    ab = flow.add(ABTest(), after=[subflows["baseline"], subflows["challenger"]])
+    select = flow.add(SelectBest(), after=list(subflows.values()))
+    ab = flow.add(ABTest(), after=select)
     flow.add(Promote(), after=ab)
     return flow
 

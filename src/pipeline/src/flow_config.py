@@ -34,3 +34,12 @@ class TrainingFlowConfig:
 
 BASELINE_FLOW_CONFIG = TrainingFlowConfig(C=1.0, ngram_max=2, min_df=5)
 CHALLENGER_FLOW_CONFIG = TrainingFlowConfig(C=0.05, ngram_max=1, min_df=50)
+C03_FLOW_CONFIG = TrainingFlowConfig(C=0.3)
+
+# Candidate configs trained in parallel and compared by the selection step. The
+# keys are the variant names the pipeline trains and the selection step resolves.
+CANDIDATE_FLOW_CONFIGS: dict[str, TrainingFlowConfig] = {
+    "baseline": BASELINE_FLOW_CONFIG,
+    "challenger": CHALLENGER_FLOW_CONFIG,
+    "c03": C03_FLOW_CONFIG,
+}
